@@ -1,0 +1,15 @@
+flowchart LR
+  U(["Użytkownik / przeglądarka"]) -- "HTTPS 443" --> WEB
+  subgraph VPC["AWS VPC fitbook-vpc 10.0.0.0/16"]
+    subgraph PUB["Public Subnet 10.0.1.0/24"]
+      WEB["Nginx + React (build)<br/>Warstwa dostępowa (EC2)"]
+    end
+    subgraph PRIVA["Private Subnet A 10.0.2.0/24"]
+      API["Django + DRF + Gunicorn<br/>Warstwa logiki (EC2)"]
+    end
+    subgraph PRIVB["Private Subnet B 10.0.3.0/24 i 10.0.4.0/24 (2 AZ)"]
+      DB[("Amazon RDS PostgreSQL<br/>Warstwa danych")]
+    end
+  end
+  WEB -- "HTTP 8000 (/api)" --> API
+  API -- "TCP 5432" --> DB
