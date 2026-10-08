@@ -1,0 +1,20 @@
+# zmienne środowiskowe (hasła!)
+.env
+.env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
