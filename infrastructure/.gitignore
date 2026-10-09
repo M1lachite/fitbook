@@ -1,0 +1,29 @@
+# Lokalne katalogi providerów i modułów
+**/.terraform/*
+
+# State i jego backupy (state trzymamy w S3)
+*.tfstate
+*.tfstate.*
+
+# Logi crashy
+crash.log
+crash.*.log
+
+# Pliki ze zmiennymi, które mogą zawierać sekrety
+*.auto.tfvars
+*.auto.tfvars.json
+secrets.tfvars
+
+# Lokalne nadpisania
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Zapisane plany (mogą zawierać wrażliwe wartości)
+*.tfplan
+tfplan
+
+# Pliki CLI
+.terraformrc
+terraform.rc
