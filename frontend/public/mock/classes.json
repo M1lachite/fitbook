@@ -1,0 +1,9 @@
+[
+  { "id": 1, "title": "Joga poranna", "description": "Spokojne zajęcia rozciągające na start dnia.", "instructor": "Anna Kowalska", "start_time": "2026-10-12T08:00:00", "capacity": 15, "booked": 9 },
+  { "id": 2, "title": "Spinning", "description": "Intensywny trening na rowerach stacjonarnych.", "instructor": "Piotr Nowak", "start_time": "2026-10-12T18:00:00", "capacity": 20, "booked": 20 },
+  { "id": 3, "title": "Pilates", "description": "Wzmacnianie mięśni głębokich i poprawa postawy.", "instructor": "Marta Wiśniewska", "start_time": "2026-10-13T17:30:00", "capacity": 12, "booked": 5 },
+  { "id": 4, "title": "Zumba", "description": "Taneczny trening cardio do latynoskich rytmów.", "instructor": "Kasia Zielińska", "start_time": "2026-10-14T19:00:00", "capacity": 25, "booked": 18 },
+  { "id": 5, "title": "Trening siłowy", "description": "Ćwiczenia z ciężarami pod okiem instruktora.", "instructor": "Piotr Nowak", "start_time": "2026-10-15T07:00:00", "capacity": 10, "booked": 3 },
+  { "id": 6, "title": "Stretching", "description": "Rozciąganie i relaks po całym tygodniu.", "instructor": "Anna Kowalska", "start_time": "2026-10-16T18:30:00", "capacity": 15, "booked": 14 },
+  { "id": 7, "title": "Pilates", "description": "Mięśnie głębokie i postawa.", "instructor": "Marta Wiśniewska", "start_time": "2026-10-12T12:30:00", "capacity": 12, "booked": 10 }
+]

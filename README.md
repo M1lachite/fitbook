@@ -32,9 +32,21 @@ Projekt jest w trakcie przygotowania. Na ten moment nie mamy jeszcze utworzonych
 
 Adresy i hasła nie są zapisane w kodzie. Konfiguracja odbywa się przez zmienne środowiskowe: skopiuj `.env.example` do `.env` i uzupełnij wartości.
 
-## Uruchomienie lokalne
+## Frontend (React + Vite)
 
-_Do uzupełnienia._
+Uruchomienie lokalne:
+cd frontend
+copy .env.example .env.local
+npm install
+npm run dev
+
+
+Uruchomienie w Dockerze (Nginx):
+cd frontend
+docker build -t fitbook-frontend .
+docker run --rm -p 8080:80 fitbook-frontend
+
+Aplikacja jest dostępna pod adresem http://localhost:8080. Adres API ustawia zmienna `VITE_API_URL`.
 
 ## Wdrożenie
 
