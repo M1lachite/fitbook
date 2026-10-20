@@ -14,9 +14,10 @@ infrastructure/
 ├── versions.tf
 ├── backend.tf         # state w S3
 └── modules/
-    ├── network/       # VPC, podsieci, Internet Gateway
+    ├── network/       # VPC, podsieci, Internet Gateway, NAT Gateway
     ├── security/      # Security Groups
-    └── compute/       # instancje EC2
+    ├── compute/       # instancje EC2 (web, app)
+    └── rds/           # baza PostgreSQL (RDS)
 ```
 
 ## Wymagania
@@ -24,6 +25,7 @@ infrastructure/
 - [Terraform](https://developer.hashicorp.com/terraform/install) w wersji 1.10 lub nowszej
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - Klucz dostępu do AWS (instrukcja niżej)
+- Rola IAM `fitbook-ec2-ssm` (z polityką `AmazonSSMManagedInstanceCore`) utworzona w koncie AWS - przypisywana do `ec2-app`, pozwala wejść na instancję przez Session Manager
 
 ## Klucz do AWS CLI
 
@@ -82,9 +84,11 @@ VPC: `10.0.0.0/16`
 
 | Podsieć | Strefa a | Strefa b | Dostęp do internetu |
 |---|---|---|---|
-| web | 10.0.1.0/24 | 10.0.11.0/24 | tak |
-| app | 10.0.2.0/24 | 10.0.12.0/24 | nie |
+| web | 10.0.1.0/24 | 10.0.11.0/24 | tak (Internet Gateway) |
+| app | 10.0.2.0/24 | 10.0.12.0/24 | tylko wychodzący (NAT Gateway) |
 | db | 10.0.3.0/24 | 10.0.13.0/24 | nie |
+
+NAT Gateway stoi w podsieci web (strefa a). Instancje w podsieci app mogą z niego korzystać do pobierania pakietów, ale z internetu nie da się do nich połączyć.
 
 ## Security Groups
 
@@ -101,4 +105,21 @@ VPC: `10.0.0.0/16`
 |---|---|---|
 | ec2-web | web (strefa a) | tak |
 | ec2-app | app (strefa a) | nie |
-| ec2-db | db (strefa a) | nie |
+
+Na `ec2-app` wchodzimy przez Session Manager (konsola AWS → EC2 → Connect → Session Manager).
+
+## Baza danych (RDS)
+
+| Parametr | Wartość |
+|---|---|
+| Silnik | PostgreSQL 16 |
+| Klasa | db.t4g.micro |
+| Podsieci | db (strefy a i b), `publicly_accessible = false` |
+| Dostęp | tylko z SG app, port 5432 |
+| Hasło | generowane przez AWS, zapisane w Secrets Manager |
+
+Adres bazy i ARN sekretu z hasłem wypisują outputy `rds_endpoint` i `rds_secret_arn`. Hasło pobieramy poleceniem:
+
+```bash
+aws secretsmanager get-secret-value --secret-id <rds_secret_arn> --query SecretString --output text
+```
