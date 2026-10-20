@@ -25,3 +25,12 @@ output "web_public_ip" {
 output "private_ips" {
   value = module.compute.private_ips
 }
+
+output "rds_endpoint" {
+  value = module.rds.endpoint
+}
+
+output "rds_secret_arn" {
+  description = "Sekret w Secrets Manager z hasłem do bazy"
+  value       = module.rds.secret_arn
+}
