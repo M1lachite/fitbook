@@ -24,14 +24,18 @@ resource "aws_instance" "app" {
   subnet_id              = var.app_subnet_id
   vpc_security_group_ids = [var.sg_app_id]
 
+  # Rola utworzona ręcznie przez admina (AmazonSSMManagedInstanceCore) -
+  # pozwala wejść na instancję przez Session Manager
+  iam_instance_profile = "${var.project}-ec2-ssm"
+
+  # Przy pierwszym starcie: Docker, git i klient PostgreSQL (psql)
+  user_data                   = <<-EOT
+    #!/bin/bash
+    dnf install -y docker git postgresql16
+    systemctl enable --now docker
+    usermod -aG docker ssm-user || true
+  EOT
+  user_data_replace_on_change = true
+
   tags = { Name = "${var.project}-ec2-app" }
-}
-
-resource "aws_instance" "db" {
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.micro"
-  subnet_id              = var.db_subnet_id
-  vpc_security_group_ids = [var.sg_db_id]
-
-  tags = { Name = "${var.project}-ec2-db" }
 }
