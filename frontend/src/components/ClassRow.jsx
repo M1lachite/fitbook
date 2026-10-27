@@ -1,6 +1,7 @@
-import { Badge, Button, Card, ProgressBar } from 'react-bootstrap'
+import { Badge, Button, Card, ProgressBar, Spinner } from 'react-bootstrap'
+import { Link } from 'react-router-dom'
 
-function ClassRow({ item }) {
+function ClassRow({ item, isBooked, canBook, busy, onBook }) {
   const free = item.capacity - item.booked
   const isFull = free === 0
   const isLast = free > 0 && free <= 3
@@ -9,6 +10,21 @@ function ClassRow({ item }) {
     hour: '2-digit',
     minute: '2-digit',
   })
+
+  let action
+  if (!canBook) {
+    action = (
+      <Button as={Link} to="/login" variant="outline-primary">Zaloguj się, aby zapisać</Button>
+    )
+  } else if (isBooked) {
+    action = <Button variant="success" disabled>Zapisano</Button>
+  } else {
+    action = (
+      <Button disabled={isFull || busy} onClick={() => onBook(item.id)}>
+        {busy ? <Spinner size="sm" animation="border" /> : isFull ? 'Brak miejsc' : 'Zapisz się'}
+      </Button>
+    )
+  }
 
   return (
     <Card className={isFull ? 'bg-light' : ''}>
@@ -23,11 +39,13 @@ function ClassRow({ item }) {
         </div>
         <div style={{ width: 200 }}>
           <div className="small fw-medium mb-1">
-            {isFull ? `Brak miejsc (${item.capacity} z ${item.capacity})` : `Wolne miejsca: ${free} z ${item.capacity}`}
+            {isFull
+              ? `Brak miejsc (${item.capacity} z ${item.capacity})`
+              : `Wolne miejsca: ${free} z ${item.capacity}`}
           </div>
           <ProgressBar now={item.booked} max={item.capacity} variant={barVariant} style={{ height: 8 }} />
         </div>
-        <Button disabled={isFull}>{isFull ? 'Brak miejsc' : 'Zapisz się'}</Button>
+        {action}
       </Card.Body>
     </Card>
   )

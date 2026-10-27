@@ -1,9 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL
+import { request } from './client'
 
-export async function getClasses() {
-  const response = await fetch(`${API_URL}/classes.json`)
-  if (!response.ok) {
-    throw new Error('Nie udało się pobrać zajęć')
-  }
-  return response.json()
-}
+export const getClasses = () => request('/classes/', { auth: false })
+
+export const createClass = (data) => request('/classes/', { method: 'POST', body: data })
+
+export const updateClass = (id, data) =>
+  request(`/classes/${id}/`, { method: 'PUT', body: data })
+
+export const deleteClass = (id) => request(`/classes/${id}/`, { method: 'DELETE' })
+
+export const getParticipants = (id) => request(`/classes/${id}/participants/`)
