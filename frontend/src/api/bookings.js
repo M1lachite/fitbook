@@ -1,9 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL
+import { request } from './client'
 
-export async function getMyBookings() {
-  const response = await fetch(`${API_URL}/bookings.json`)
-  if (!response.ok) {
-    throw new Error('Nie udało się pobrać rezerwacji')
-  }
-  return response.json()
-}
+export const getMyBookings = () => request('/bookings/')
+
+export const createBooking = (fitnessClassId) =>
+  request('/bookings/', { method: 'POST', body: { fitness_class: fitnessClassId } })
+
+export const deleteBooking = (id) => request(`/bookings/${id}/`, { method: 'DELETE' })

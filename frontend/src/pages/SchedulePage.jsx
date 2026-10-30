@@ -1,31 +1,68 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Form, Spinner } from 'react-bootstrap'
+import { createBooking, getMyBookings } from '../api/bookings'
 import { getClasses } from '../api/classes'
-import WeekStrip from '../components/WeekStrip'
 import ClassRow from '../components/ClassRow'
+import WeekStrip from '../components/WeekStrip'
+import { useAuth } from '../context/useAuth'
+import { useToast } from '../context/useToast'
 import { addDays, fromKey, startOfWeek, toKey } from '../utils/dates'
 
 function SchedulePage() {
+  const { user } = useAuth()
+  const notify = useToast()
+  const userId = user ? user.id : null
+
   const [classes, setClasses] = useState([])
+  const [bookedIds, setBookedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date()))
-  const [selectedKey, setSelectedKey] = useState(toKey(new Date()))
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  const [selectedKey, setSelectedKey] = useState(() => toKey(new Date()))
   const [instructor, setInstructor] = useState('all')
+  const [busyId, setBusyId] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const initialized = useRef(false)
 
   useEffect(() => {
-    getClasses()
-      .then((data) => {
-        setClasses(data)
-        if (data.length > 0) {
-          const firstKey = data.map((c) => c.start_time.slice(0, 10)).sort()[0]
+    let active = true
+    const bookingsRequest = userId ? getMyBookings() : Promise.resolve([])
+    Promise.all([getClasses(), bookingsRequest])
+      .then(([classData, bookingData]) => {
+        if (!active) return
+        setClasses(classData)
+        setBookedIds(new Set(bookingData.map((b) => b.fitness_class)))
+        setError(null)
+        if (!initialized.current && classData.length > 0) {
+          initialized.current = true
+          const firstKey = classData.map((c) => c.start_time.slice(0, 10)).sort()[0]
           setSelectedKey(firstKey)
           setWeekStart(startOfWeek(fromKey(firstKey)))
         }
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+      .catch((err) => {
+        if (active) setError(err.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [userId, reloadKey])
+
+  const handleBook = async (classId) => {
+    setBusyId(classId)
+    try {
+      await createBooking(classId)
+      notify('Zapisano na zajęcia.')
+    } catch (err) {
+      notify(err.message, 'danger')
+    } finally {
+      setBusyId(null)
+      setReloadKey((k) => k + 1)
+    }
+  }
 
   if (loading) return <Spinner animation="border" />
   if (error) return <Alert variant="danger">{error}</Alert>
@@ -45,7 +82,9 @@ function SchedulePage() {
 
   const weekEnd = addDays(weekStart, 6)
   const dayLabel = fromKey(selectedKey).toLocaleDateString('pl-PL', {
-    weekday: 'long', day: 'numeric', month: 'long',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
   })
 
   return (
@@ -85,7 +124,14 @@ function SchedulePage() {
       ) : (
         <div className="d-flex flex-column gap-3">
           {visible.map((c) => (
-            <ClassRow key={c.id} item={c} />
+            <ClassRow
+              key={c.id}
+              item={c}
+              isBooked={bookedIds.has(c.id)}
+              canBook={Boolean(user)}
+              busy={busyId === c.id}
+              onBook={handleBook}
+            />
           ))}
         </div>
       )}

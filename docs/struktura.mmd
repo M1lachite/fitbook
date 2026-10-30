@@ -1,15 +1,23 @@
 flowchart LR
-  U(["Użytkownik / przeglądarka"]) -- "HTTPS 443" --> WEB
+  U(["Użytkownik / przeglądarka"]) -- "HTTP 80" --> WEB
   subgraph VPC["AWS VPC fitbook-vpc 10.0.0.0/16"]
     subgraph PUB["Public Subnet 10.0.1.0/24"]
-      WEB["Nginx + React (build)<br/>Warstwa dostępowa (EC2)"]
+      WEB["ec2-web<br/>React + Nginx<br/>warstwa dostępowa"]
     end
     subgraph PRIVA["Private Subnet A 10.0.2.0/24"]
-      API["Django + DRF + Gunicorn<br/>Warstwa logiki (EC2)"]
+      API["ec2-app<br/>Django + DRF + gunicorn<br/>warstwa logiki"]
     end
-    subgraph PRIVB["Private Subnet B 10.0.3.0/24 i 10.0.4.0/24 (2 AZ)"]
-      DB[("Amazon RDS PostgreSQL<br/>Warstwa danych")]
+    subgraph PRIVB["Private Subnet db (2 AZ)"]
+      DB[("Amazon RDS<br/>PostgreSQL 16<br/>10.0.3.0/24 i 10.0.13.0/24<br/>warstwa danych")]
     end
   end
-  WEB -- "HTTP 8000 (/api)" --> API
-  API -- "TCP 5432" --> DB
+  WEB -- "HTTP 8080 (/api)" --> API
+  API -- "TCP 5432 (SQL)" --> DB
+  style VPC fill:#fdf0ff,stroke:#d36bf0
+  style PUB fill:#effcf8,stroke:#2ec4a0
+  style PRIVA fill:#fff5ea,stroke:#f09a3e
+  style PRIVB fill:#effcff,stroke:#2bc4e0
+  style WEB fill:#ffffff,stroke:#222
+  style API fill:#ffffff,stroke:#222
+  style DB fill:#ffffff,stroke:#222
+  style U fill:#ffffff,stroke:#222
