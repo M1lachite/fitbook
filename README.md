@@ -217,6 +217,7 @@ Wszystkie zasoby są dostępne pod prefiksem `/api`. Endpointy chronione wymagaj
 | DELETE | `/api/bookings/{id}/` | Zalogowany | Anulowanie własnej rezerwacji                         | 204, 401, 404 |
 | GET | `/api/users/` | Admin | Lista wszystkich kont użytkowników                    | 200, 401, 403 |
 | PATCH | `/api/users/{id}/` | Admin | Zmiana roli wybranego użytkownika                     | 200, 400, 401, 403, 404 |                                      | 200, 400, 401, 403, 404 |
+| GET | `/api/health/` | Publiczny | Sprawdzenie, czy backend działa                  | 200 |
 
 ### Kody odpowiedzi
 
