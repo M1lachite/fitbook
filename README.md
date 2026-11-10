@@ -335,3 +335,22 @@ Odpowiedź `201`:
 ## Wdrożenie
 
 _Do uzupełnienia._
+
+### Baza danych (Amazon RDS)
+
+Baza działa w Amazon RDS i jest tworzona Terraformem (moduł `infrastructure/modules/rds`).
+
+| Parametr | Wartość |
+|---|---|
+| Silnik | PostgreSQL 16 |
+| Klasa instancji | `db.t4g.micro` |
+| Nazwa bazy | `fitbook` |
+| Użytkownik | `fitbook_admin` |
+| Podsieci | dwie prywatne podsieci db (10.0.3.0/24 i 10.0.13.0/24) |
+| Dostęp publiczny | brak |
+| Multi-AZ | nie |
+
+- **Hasło:** generuje AWS i przechowuje w Secrets Manager. Nie ma go w kodzie ani w stanie Terraforma.
+- **Dostęp sieciowy:** baza przyjmuje ruch na porcie 5432 wyłącznie od warstwy app (Security Group `db` wpuszcza tylko Security Group `app`).
+- **Migracje:** uruchamiają się automatycznie przy starcie kontenera backendu (`python manage.py migrate` w `backend/Dockerfile`).
+- **Środowisko testowe:** brak kopii zapasowych i brak snapshotu przy usuwaniu bazy.
