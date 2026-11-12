@@ -90,7 +90,7 @@ function App() {
         </Routes>
       </Container>
       <footer className="text-center text-muted small my-4">
-        FitBook, wersja: {import.meta.env.VITE_APP_VERSION || 'dev'}
+        FitBook (wdrożenie CD), wersja: {import.meta.env.VITE_APP_VERSION || 'dev'}
       </footer>
 
     </>
