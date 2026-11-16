@@ -15,3 +15,7 @@ output "ecr_repository_urls" {
     backend  = aws_ecr_repository.backend.repository_url
   }
 }
+
+output "cloudfront_domain" {
+  value = aws_cloudfront_distribution.web.domain_name
+}
