@@ -78,6 +78,13 @@ jobs:
           read -r RDS_ENDPOINT RDS_SECRET_ARN <<< "$(aws rds describe-db-instances \
             --db-instance-identifier fitbook-db \
             --query 'DBInstances[0].[Endpoint.Address,MasterUserSecret.SecretArn]' --output text)"
+          
+          CF_DOMAIN=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='fitbook-web'].DomainName | [0]" --output text)
+          if [ -z "$CF_DOMAIN" ] || [ "$CF_DOMAIN" = "None" ]; then
+            echo "Nie znaleziono dystrybucji CloudFront fitbook-web"
+            exit 1
+          fi
 
           {
             echo "VERSION=$VERSION"
@@ -86,6 +93,7 @@ jobs:
             echo "APP_IP=$(instance fitbook-ec2-app PrivateIpAddress)"
             echo "WEB_ID=$(instance fitbook-ec2-web InstanceId)"
             echo "WEB_IP=$(instance fitbook-ec2-web PublicIpAddress)"
+            echo "CF_DOMAIN=$CF_DOMAIN"
             echo "RDS_ENDPOINT=$RDS_ENDPOINT"
             echo "RDS_SECRET_ARN=$RDS_SECRET_ARN"
           } >> "$GITHUB_ENV"
@@ -125,7 +133,7 @@ jobs:
         run: |
           {
             echo "export AWS_REGION=$AWS_REGION REGISTRY=$REGISTRY VERSION=$VERSION"
-            echo "export WEB_IP=$WEB_IP RDS_ENDPOINT=$RDS_ENDPOINT RDS_SECRET_ARN='$RDS_SECRET_ARN'"
+            echo "export WEB_IP=$WEB_IP CF_DOMAIN=$CF_DOMAIN RDS_ENDPOINT=$RDS_ENDPOINT RDS_SECRET_ARN='$RDS_SECRET_ARN'"
             cat <<'EOF'
           set -euo pipefail
           export HOME=/root
@@ -145,7 +153,7 @@ jobs:
           docker run -d --name backend --restart unless-stopped -p 8080:8080 \
             -e DJANGO_SECRET_KEY -e DB_PASSWORD \
             -e DJANGO_DEBUG=False \
-            -e DJANGO_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB_IP" \
+            -e DJANGO_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB_IP,$CF_DOMAIN" \
             -e DB_NAME=fitbook -e DB_USER=fitbook_admin \
             -e DB_HOST="$RDS_ENDPOINT" -e DB_PORT=5432 \
             "$IMAGE"
@@ -191,13 +199,13 @@ jobs:
 
       - name: Healthcheck (publiczny adres)
         run: |
-          echo "Adres: http://$WEB_IP/  oczekiwana wersja: $VERSION"
+          echo "Adres: https://$CF_DOMAIN/  oczekiwana wersja: $VERSION"
           for i in $(seq 1 12); do
             # Wersja jest wbudowana w plik JS aplikacji (widoczna w stopce strony)
-            JS=$(curl -fs "http://$WEB_IP/" | grep -o '/assets/[^"]*\.js' | head -n 1 || true)
+            JS=$(curl -fs "https://$CF_DOMAIN/" | grep -o '/assets/[^"]*\.js' | head -n 1 || true)
             if [ -n "$JS" ] \
-              && curl -fs "http://$WEB_IP$JS" | grep -q "$VERSION" \
-              && curl -fs "http://$WEB_IP/api/classes/" > /dev/null; then
+              && curl -fs "https://$CF_DOMAIN$JS" | grep -q "$VERSION" \
+              && curl -fs "https://$CF_DOMAIN/api/classes/" > /dev/null; then
               echo "OK: aplikacja działa, wersja $VERSION"
               exit 0
             fi
