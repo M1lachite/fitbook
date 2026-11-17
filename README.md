@@ -20,7 +20,7 @@ Projekt realizowany jest w 4-osobowym zespole w ramach przedmiotu „Projekt zes
 - Front-end: React + Vite, react-bootstrap, serwowany przez Nginx
 - Back-end: Python, Django, Django REST Framework, JWT (simplejwt), gunicorn
 - Baza danych: PostgreSQL 16 (Amazon RDS)
-- Infrastruktura:  AWS (VPC, podsieci, Security Groups, EC2), Terraform
+- Infrastruktura:  AWS (VPC, podsieci, Security Groups, EC2, CloudFront), Terraform
 - Konteneryzacja: Docker, Docker Compose
 
 ## Architektura
@@ -34,7 +34,7 @@ Przepływ danych:
 3. Django weryfikuje token JWT oraz uprawnienia roli użytkownika, waliduje dane i wykonuje zapytania SQL do bazy (port 5432).
 4. Odpowiedź JSON wraca tą samą ścieżką do przeglądarki, a React aktualizuje widok interfejsu.
 
-Reguły Security Groups: warstwa web przyjmuje ruch z internetu (80, 443), app przyjmuje ruch tylko od web (8080), a baza tylko od app (5432). Maszyny w podsieciach prywatnych nie mają adresów publicznych.
+Reguły Security Groups: warstwa web przyjmuje ruch z internetu (80, 443), app przyjmuje ruch tylko od web (8080), a baza tylko od app (5432). Maszyny w podsieciach prywatnych nie mają adresów publicznych. Ruch użytkowników przechodzi przez CloudFront (HTTPS, przekierowanie HTTP → HTTPS), szczegóły w sekcji „Bezpieczeństwo sieciowe”.
 
 ## Struktura repozytorium
 
@@ -100,7 +100,7 @@ fitbook/
     └── modules/
         ├── network/          # VPC, podsieci web/app/db, Internet Gateway, NAT Gateway
         ├── security/         # Security Groups izolujące warstwy (web → app → db)
-        ├── compute/          # instancje EC2 (web, app)
+        ├── compute/          # instancje EC2 (web, app), dystrybucja CloudFront (HTTPS)
         └── rds/              # baza PostgreSQL (RDS)       
 ```
 
@@ -355,3 +355,38 @@ Baza działa w Amazon RDS i jest tworzona Terraformem (moduł `infrastructure/mo
 - **Dostęp sieciowy:** baza przyjmuje ruch na porcie 5432 wyłącznie od warstwy app (Security Group `db` wpuszcza tylko Security Group `app`).
 - **Migracje:** uruchamiają się automatycznie przy starcie kontenera backendu (`python manage.py migrate` w `backend/Dockerfile`).
 - **Środowisko testowe:** brak kopii zapasowych i brak snapshotu przy usuwaniu bazy.
+
+## Bezpieczeństwo sieciowe
+
+Ruch między warstwami kontrolują trzy Security Groups (moduł `infrastructure/modules/security`). Stosujemy zasadę najmniejszych uprawnień: każda warstwa wpuszcza tylko ruch, którego potrzebuje do swojej roli, a warstwy app i db przyjmują ruch wyłącznie od Security Group warstwy wyżej, a nie z adresów IP.
+
+### Reguły Security Groups
+
+| Warstwa (Security Group) | Kierunek | Protokół / port | Źródło / cel | Uzasadnienie |
+|---|---|---|---|---|
+| Web (`fitbook-web-sg`) | Inbound | TCP 80 | 0.0.0.0/0 | HTTP z internetu (CloudFront przekierowuje użytkowników na HTTPS) |
+| Web (`fitbook-web-sg`) | Inbound | TCP 443 | 0.0.0.0/0 | HTTPS z internetu |
+| Web (`fitbook-web-sg`) | Inbound | TCP 22 | prefix list EC2 Instance Connect | Łączenie z konsoli AWS, port 22 nie jest otwarty dla internetu |
+| Web (`fitbook-web-sg`) | Inbound | ICMP | 0.0.0.0/0 | Diagnostyka (ping) |
+| Web (`fitbook-web-sg`) | Outbound | wszystkie | 0.0.0.0/0 | Odpowiedzi dla klientów, przekazywanie zapytań do warstwy app, pobieranie obrazów i pakietów |
+| App (`fitbook-app-sg`) | Inbound | TCP 8080 | SG web | API backendu dostępne tylko z warstwy web |
+| App (`fitbook-app-sg`) | Inbound | ICMP | SG web | Diagnostyka (ping) z warstwy web |
+| App (`fitbook-app-sg`) | Outbound | wszystkie | 0.0.0.0/0 (przez NAT Gateway) | Połączenie z bazą, pobieranie obrazów i pakietów, agent SSM |
+| DB (`fitbook-db-sg`) | Inbound | TCP 5432 | SG app | PostgreSQL dostępny tylko z warstwy app |
+| DB (`fitbook-db-sg`) | Outbound | brak reguł | – | Baza sama nie nawiązuje połączeń |
+
+Najważniejsze zasady:
+
+- Żadna reguła nie wpuszcza ruchu z `0.0.0.0/0` na portach 22, 5432 ani 8080.
+- Porty zarządcze: na warstwie web port 22 jest otwarty tylko dla usługi EC2 Instance Connect. Warstwy app i db nie mają reguł SSH, a na `ec2-app` wchodzimy przez Session Manager, który nie wymaga otwartego portu.
+- Baza danych (RDS) nie ma adresu publicznego (`publicly_accessible = false`) i przyjmuje ruch wyłącznie od Security Group warstwy app.
+
+### HTTPS i przekierowanie HTTP → HTTPS
+
+Ruch użytkowników przechodzi przez Amazon CloudFront (moduł `infrastructure/modules/compute`, plik `cloudfront.tf`), który stoi przed serwerem Web (Nginx):
+
+- **Certyfikat:** domyślny certyfikat CloudFront (`*.cloudfront.net`), bez własnej domeny.
+- **Przekierowanie:** każde żądanie HTTP jest przekierowywane na HTTPS (odpowiedź `301` z nagłówkiem `Location: https://…`).
+- **Połączenie CloudFront → serwer Web:** HTTP, port 80 (wewnątrz AWS).
+- **Konfiguracja:** cache wyłączony (`Managed-CachingDisabled`), do serwera przekazywane są nagłówki od użytkownika (`Managed-AllViewer`), w tym `Host` i `Authorization` (token JWT), dozwolone są wszystkie metody HTTP.
+- **Adres aplikacji:** domena dystrybucji z outputu `cloudfront_domain` (zmienia się po każdym `terraform destroy` i `terraform apply`). Pipeline CD odczytuje ją z AWS i dodaje do `DJANGO_ALLOWED_HOSTS`.
