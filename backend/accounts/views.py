@@ -2,6 +2,7 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from django.db import connection
 
 from .models import User
 from .permissions import IsAdmin
@@ -36,4 +37,10 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({'status': 'ok'})
+    try:
+        # Proste zapytanie do bazy: jeśli się uda, baza odpowiada
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        return Response({'status': 'UP', 'database': 'CONNECTED'})
+    except Exception:
+        return Response({'status': 'DOWN', 'database': 'DISCONNECTED'}, status=500)
