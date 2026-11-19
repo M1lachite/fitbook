@@ -24,10 +24,11 @@ resource "aws_db_instance" "main" {
   # Hasło generuje AWS i trzyma w Secrets Manager - nie ma go w kodzie ani w state
   manage_master_user_password = true
 
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [var.sg_db_id]
-  publicly_accessible    = false
-  multi_az               = false
+  db_subnet_group_name            = aws_db_subnet_group.main.name
+  vpc_security_group_ids          = [var.sg_db_id]
+  publicly_accessible             = false
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+  multi_az                        = false
 
   # Środowisko testowe - bez kopii zapasowych i bez snapshotu przy usuwaniu
   backup_retention_period = 0
