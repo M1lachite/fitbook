@@ -21,6 +21,7 @@ Projekt realizowany jest w 4-osobowym zespole w ramach przedmiotu „Projekt zes
 - Back-end: Python, Django, Django REST Framework, JWT (simplejwt), gunicorn
 - Baza danych: PostgreSQL 16 (Amazon RDS)
 - Infrastruktura:  AWS (VPC, podsieci, Security Groups, EC2, CloudFront), Terraform
+- Monitoring i koszty: Amazon CloudWatch (logi, metryki, dashboard), AWS Budgets
 - Konteneryzacja: Docker, Docker Compose
 
 ## Architektura
@@ -100,7 +101,7 @@ fitbook/
     └── modules/
         ├── network/          # VPC, podsieci web/app/db, Internet Gateway, NAT Gateway
         ├── security/         # Security Groups izolujące warstwy (web → app → db)
-        ├── compute/          # instancje EC2 (web, app), dystrybucja CloudFront (HTTPS)
+        ├── compute/          # instancje EC2 (web, app), dystrybucja CloudFront (HTTPS), monitoring CloudWatch (monitoring.tf)
         └── rds/              # baza PostgreSQL (RDS)       
 ```
 
@@ -216,8 +217,8 @@ Wszystkie zasoby są dostępne pod prefiksem `/api`. Endpointy chronione wymagaj
 | POST | `/api/bookings/` | Zalogowany | Zapisanie się na wybrane zajęcia                      | 201, 400, 401 |
 | DELETE | `/api/bookings/{id}/` | Zalogowany | Anulowanie własnej rezerwacji                         | 204, 401, 404 |
 | GET | `/api/users/` | Admin | Lista wszystkich kont użytkowników                    | 200, 401, 403 |
-| PATCH | `/api/users/{id}/` | Admin | Zmiana roli wybranego użytkownika                     | 200, 400, 401, 403, 404 |                                      | 200, 400, 401, 403, 404 |
-| GET | `/api/health/` | Publiczny | Sprawdzenie, czy backend działa                  | 200 |
+| PATCH | `/api/users/{id}/` | Admin | Zmiana roli wybranego użytkownika                     | 200, 400, 401, 403, 404 |
+| GET | `/api/health/` | Publiczny | Sprawdzenie, czy backend działa i ma połączenie z bazą (status UP / DOWN) | 200, 500 |
 
 ### Kody odpowiedzi
 
@@ -390,3 +391,69 @@ Ruch użytkowników przechodzi przez Amazon CloudFront (moduł `infrastructure/m
 - **Połączenie CloudFront → serwer Web:** HTTP, port 80 (wewnątrz AWS).
 - **Konfiguracja:** cache wyłączony (`Managed-CachingDisabled`), do serwera przekazywane są nagłówki od użytkownika (`Managed-AllViewer`), w tym `Host` i `Authorization` (token JWT), dozwolone są wszystkie metody HTTP.
 - **Adres aplikacji:** domena dystrybucji z outputu `cloudfront_domain` (zmienia się po każdym `terraform destroy` i `terraform apply`). Pipeline CD odczytuje ją z AWS i dodaje do `DJANGO_ALLOWED_HOSTS`.
+
+## Monitoring i FinOps
+
+### Alert budżetowy (FinOps)
+
+Koszty kontroluje budżet w AWS Budgets: `fitbook-budget` (typ Cost budget, okres miesięczny, kwota 10 USD, wszystkie usługi AWS). Skonfigurowano trzy progi ostrzegawcze oparte na kosztach rzeczywistych:
+
+| Próg | Kwota |
+|---|---|
+| 50% | 5 USD |
+| 80% | 8 USD |
+| 100% | 10 USD |
+
+Powiadomienia e-mail trafiają na adres administratora konta AWS. Budżet jest utworzony ręcznie w konsoli AWS (nie w Terraformie), więc nie znika po `terraform destroy`.
+
+Pozostałe sposoby ograniczania kosztów:
+
+- małe instancje: EC2 `t3.micro`, baza `db.t4g.micro`,
+- retencja logów aplikacji ustawiona na 7 dni,
+- środowisko jest stawiane na czas pracy i usuwane poleceniem `terraform destroy` (największy koszt generuje NAT Gateway).
+
+### Health check
+
+Endpoint `GET /api/health/` jest publiczny i sprawdza, czy backend działa oraz czy ma połączenie z bazą (zapytanie `SELECT 1`). Adres podajemy z ukośnikiem na końcu.
+
+```
+curl https://<domena-cloudfront>/api/health/
+```
+
+Odpowiedź `200`, gdy wszystko działa:
+
+```json
+{ "status": "UP", "database": "CONNECTED" }
+```
+
+Odpowiedź `500`, gdy baza jest niedostępna (treść błędu nie jest ujawniana, bo endpoint jest publiczny):
+
+```json
+{ "status": "DOWN", "database": "DISCONNECTED" }
+```
+
+Domena CloudFront znajduje się w outpucie Terraforma `cloudfront_domain`.
+
+### Logi (CloudWatch Logs)
+
+- **Backend:** logi kontenera (stdout/stderr) trafiają do Amazon CloudWatch Logs sterownikiem Dockera `awslogs`, do grupy `fitbook-backend` (strumień `backend`, retencja 7 dni). Grupę tworzy Terraform (`infrastructure/modules/compute/monitoring.tf`), a sterownik jest ustawiany w pipeline wdrożeniowym (`.github/workflows/deploy.yml`).
+- **Dziennik żądań:** gunicorn zapisuje na stdout każde żądanie w formacie `adres "metoda ścieżka protokół" kod czas_w_ms`, np. `10.0.1.182 "GET /api/classes/ HTTP/1.1" 200 35`.
+- **Baza danych:** logi PostgreSQL z RDS są eksportowane do grupy `/aws/rds/instance/fitbook-db/postgresql` (opcja `enabled_cloudwatch_logs_exports` w module `rds`). Tę grupę tworzy AWS automatycznie, więc nie jest zarządzana Terraformem i zostaje po `terraform destroy`.
+- **Uprawnienia:** rola instancji `fitbook-ec2-ssm` ma politykę pozwalającą zapisywać logi i metryki w CloudWatch. Rola jest utworzona ręcznie poza Terraformem i nie znika po `terraform destroy`.
+
+Logi przegląda się w konsoli AWS: CloudWatch, Log management, wybrana grupa logów.
+
+### Dashboard (CloudWatch)
+
+Dashboard `fitbook-monitoring` jest opisany w Terraformie (`infrastructure/modules/compute/monitoring.tf`) i zawiera cztery wykresy:
+
+| Wykres | Źródło danych |
+|---|---|
+| Liczba żądań HTTP (2xx / 4xx / 5xx) | metryki `Requests2xx`, `Requests4xx`, `Requests5xx` (przestrzeń nazw `Fitbook`), liczone z dziennika żądań gunicorna przez filtry metryk |
+| Czas odpowiedzi API (ms) | metryka `ResponseTimeMs` (przestrzeń nazw `Fitbook`), liczona z dziennika żądań |
+| Zużycie procesora CPU (%) | standardowa metryka `CPUUtilization` (AWS/EC2) serwera aplikacji |
+| Zużycie pamięci RAM (%) | metryka `MemoryUtilization` (przestrzeń nazw `Fitbook`), wysyłana przez skrypt |
+
+Pamięć RAM jest zbierana prostym skryptem wysyłającym metrykę do CloudWatch co minutę, ponieważ instancja `t3.micro` ma ograniczone zasoby i zależało nam na jak najmniejszym narzucie. W środowisku produkcyjnym użylibyśmy oficjalnego CloudWatch Agenta. Skrypt jest instalowany na `ec2-app` w kroku pipeline wdrożeniowego jako timer systemd, więc po każdym ponownym postawieniu infrastruktury uruchamia się automatycznie.
+
+Dashboard otwiera się w konsoli AWS: CloudWatch, Dashboards, `fitbook-monitoring`.
