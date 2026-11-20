@@ -15,7 +15,27 @@ resource "aws_instance" "web" {
   subnet_id              = var.web_subnet_id
   vpc_security_group_ids = [var.sg_web_id]
 
+  # Ta sama rola co dla app (SSM + pobieranie z ECR)
+  iam_instance_profile = "${var.project}-ec2-ssm"
+
+  # Przy pierwszym starcie: Docker
+  user_data                   = <<-EOT
+    #!/bin/bash
+    dnf install -y docker
+    systemctl enable --now docker
+    usermod -aG docker ssm-user || true
+  EOT
+  user_data_replace_on_change = true
+
   tags = { Name = "${var.project}-ec2-web" }
+}
+
+# Stały publiczny adres dla web
+resource "aws_eip" "web" {
+  domain   = "vpc"
+  instance = aws_instance.web.id
+
+  tags = { Name = "${var.project}-web-eip" }
 }
 
 resource "aws_instance" "app" {
@@ -38,4 +58,15 @@ resource "aws_instance" "app" {
   user_data_replace_on_change = true
 
   tags = { Name = "${var.project}-ec2-app" }
+}
+
+# Repozytoria obrazów Dockera (force_delete, żeby terraform destroy działał z obrazami w środku)
+resource "aws_ecr_repository" "frontend" {
+  name         = "${var.project}-frontend"
+  force_delete = true
+}
+
+resource "aws_ecr_repository" "backend" {
+  name         = "${var.project}-backend"
+  force_delete = true
 }

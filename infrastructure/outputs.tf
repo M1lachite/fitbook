@@ -34,3 +34,11 @@ output "rds_secret_arn" {
   description = "Sekret w Secrets Manager z hasłem do bazy"
   value       = module.rds.secret_arn
 }
+
+output "ecr_repository_urls" {
+  value = module.compute.ecr_repository_urls
+}
+
+output "cloudfront_domain" {
+  value = module.compute.cloudfront_domain
+}
