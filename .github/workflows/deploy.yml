@@ -267,3 +267,65 @@ jobs:
           done
           echo "Healthcheck nie powiódł się"
           exit 1
+
+  e2e-tests:
+    name: Testy API i E2E (Playwright)
+    # Testy uruchamiają się po zakończeniu wdrożenia i sprawdzają aplikację pod publicznym adresem (CloudFront).
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Logowanie do AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Odczyt adresu aplikacji (CloudFront)
+        run: |
+          CF_DOMAIN=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='fitbook-web'].DomainName | [0]" --output text)
+          if [ -z "$CF_DOMAIN" ] || [ "$CF_DOMAIN" = "None" ]; then
+            echo "Nie znaleziono dystrybucji CloudFront fitbook-web"
+            exit 1
+          fi
+          echo "LIVE_APP_URL=https://$CF_DOMAIN" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Instalacja zależności testów
+        working-directory: tests
+        run: npm ci
+
+      - name: Instalacja przeglądarki (Chromium)
+        working-directory: tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Testy API i E2E (tryb headless)
+        working-directory: tests
+        run: npx playwright test
+
+      # Raport HTML zapisujemy zawsze, żeby był widoczny w sekcji artefaktów
+      - name: Raport z testów (artefakt)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report
+          if-no-files-found: ignore
+
+      # Zrzuty ekranu, nagrania wideo i ślady (trace) zapisujemy tylko wtedy, gdy testy się nie powiodły
+      - name: Zrzuty ekranu i nagrania z nieudanych testów (artefakt)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-failure
+          path: tests/test-results
+          if-no-files-found: ignore
