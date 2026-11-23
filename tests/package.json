@@ -1,0 +1,14 @@
+{
+  "name": "fitbook-tests",
+  "private": true,
+  "description": "Testy integracyjne API i automatyczne testy E2E (Playwright) aplikacji FitBook",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test api.spec.js",
+    "test:e2e": "playwright test e2e.spec.js",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
