@@ -12,7 +12,7 @@ Projekt realizowany jest w 4-osobowym zespole w ramach przedmiotu „Projekt zes
 | PM / DevOps | Krzysztof Okołotowicz | @M1lachite |
 | Frontend | Aneta Krzykwa | @Aneta2508 |
 | Backend | Konrad Leśny | @Albako |
-| DBA | Karolina Wasilewska | @KaWas866 |
+| DBA | Karolina Wasilewska | @KWas866 |
 
 ## Technologie
 
@@ -457,3 +457,52 @@ Dashboard `fitbook-monitoring` jest opisany w Terraformie (`infrastructure/modul
 Pamięć RAM jest zbierana prostym skryptem wysyłającym metrykę do CloudWatch co minutę, ponieważ instancja `t3.micro` ma ograniczone zasoby i zależało nam na jak najmniejszym narzucie. W środowisku produkcyjnym użylibyśmy oficjalnego CloudWatch Agenta. Skrypt jest instalowany na `ec2-app` w kroku pipeline wdrożeniowego jako timer systemd, więc po każdym ponownym postawieniu infrastruktury uruchamia się automatycznie.
 
 Dashboard otwiera się w konsoli AWS: CloudWatch, Dashboards, `fitbook-monitoring`.
+
+## Testy integracyjne i E2E
+
+W katalogu `tests/` są automatyczne testy aplikacji napisane w Playwright:
+
+| Plik | Rodzaj testu | Co sprawdza |
+|---|---|---|
+| `tests/api.spec.js` | integracyjne, REST API (13 testów) | statusy HTTP, nagłówek `Content-Type: application/json`, strukturę odpowiedzi: health check, lista zajęć, rejestracja, logowanie (tokeny JWT), dostęp do zasobów chronionych (401, 403) |
+| `tests/e2e.spec.js` | E2E w przeglądarce (1 test) | scenariusz użytkownika: rejestracja, logowanie, widok konta i rezerwacji, wylogowanie |
+
+Adres testowanej aplikacji podaje zmienna `LIVE_APP_URL`. Bez niej testy używają `http://localhost:8080` (aplikacja z Docker Compose).
+
+### Uruchomienie lokalne
+
+Wymagane: Node.js 20.19 lub nowszy oraz uruchomiona aplikacja.
+
+```
+docker compose up --build -d
+cd tests
+npm ci
+npx playwright install chromium
+npm test
+```
+
+Można też uruchomić tylko jedną grupę testów: `npm run test:api` albo `npm run test:e2e`.
+
+Testy na wdrożonej aplikacji w chmurze (adres z outputu Terraforma `cloudfront_domain`):
+
+```
+$env:LIVE_APP_URL = "https://<domena-cloudfront>"
+npm test
+```
+
+Na Linuksie i macOS: `LIVE_APP_URL=https://<domena-cloudfront> npm test`.
+
+### Interpretacja wyników
+
+- Każdy test jest wypisywany w konsoli ze znakiem ✓ (przeszedł) albo ✘ (nie przeszedł). Podsumowanie `14 passed` oznacza, że wszystkie testy zakończyły się sukcesem.
+- Przy błędzie konsola pokazuje, która asercja zawiodła (wartość oczekiwana i otrzymana). Dla nieudanego testu Playwright zapisuje w `tests/test-results/` zrzut ekranu, nagranie wideo i ślad (trace).
+- Raport HTML otwiera polecenie `npm run report`.
+- Testy tworzą konta o nazwach zaczynających się od `qa_` i `e2e_`. Nie zmieniają ani nie usuwają istniejących danych.
+
+### Testy w CI/CD
+
+Zadanie `e2e-tests` w workflow `Deploy to AWS` uruchamia się po zakończeniu wdrożenia. Testy działają w trybie headless na publicznym adresie aplikacji (CloudFront).
+
+- Zielone zadanie oznacza, że wdrożona aplikacja przeszła wszystkie testy. Czerwone oznacza, że któryś test się nie powiódł i trzeba sprawdzić log zadania.
+- Artefakt `playwright-report` (raport HTML) jest zapisywany po każdym uruchomieniu. Artefakt `test-results-failure` (zrzuty ekranu, nagrania wideo, ślady) powstaje tylko wtedy, gdy testy się nie powiodły.
+- Artefakty są na stronie podsumowania uruchomienia w zakładce Actions, w sekcji Artifacts. Raport po pobraniu i rozpakowaniu otwiera się poleceniem `npx playwright show-report <katalog>`.
