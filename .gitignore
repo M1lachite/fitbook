@@ -20,3 +20,7 @@ dist/
 *.tfstate.*
 
 body.json
+
+# Testy Playwright (raporty i wyniki z uruchomień)
+playwright-report/
+test-results/
