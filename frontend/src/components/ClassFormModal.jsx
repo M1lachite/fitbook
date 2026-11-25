@@ -73,17 +73,17 @@ function ClassFormModal({ initial, onSave, onClose }) {
           {serverError && <Alert variant="danger">{serverError}</Alert>}
           <Form.Group className="mb-3" controlId="class-title">
             <Form.Label>Nazwa zajęć</Form.Label>
-            <Form.Control value={form.title} onChange={change('title')} isInvalid={Boolean(errors.title)} />
+            <Form.Control value={form.title} onChange={change('title')} isInvalid={Boolean(errors.title)} maxLength={100} />
             <Form.Control.Feedback type="invalid">{errors.title}</Form.Control.Feedback>
           </Form.Group>
           <Form.Group className="mb-3" controlId="class-instructor">
             <Form.Label>Instruktor</Form.Label>
-            <Form.Control value={form.instructor} onChange={change('instructor')} isInvalid={Boolean(errors.instructor)} />
+            <Form.Control value={form.instructor} onChange={change('instructor')} isInvalid={Boolean(errors.instructor)} maxLength={100} />
             <Form.Control.Feedback type="invalid">{errors.instructor}</Form.Control.Feedback>
           </Form.Group>
           <Form.Group className="mb-3" controlId="class-description">
             <Form.Label>Opis (opcjonalnie)</Form.Label>
-            <Form.Control as="textarea" rows={3} value={form.description} onChange={change('description')} />
+            <Form.Control as="textarea" rows={3} value={form.description} onChange={change('description')} maxLength={1000} />
           </Form.Group>
           <Form.Group className="mb-3" controlId="class-start">
             <Form.Label>Termin</Form.Label>

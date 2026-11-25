@@ -52,6 +52,7 @@ function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               isInvalid={Boolean(errors.username)}
+              maxLength={150}
               autoComplete="username"
             />
             <Form.Control.Feedback type="invalid">{errors.username}</Form.Control.Feedback>
@@ -63,6 +64,7 @@ function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               isInvalid={Boolean(errors.password)}
+              maxLength={128}
               autoComplete="current-password"
             />
             <Form.Control.Feedback type="invalid">{errors.password}</Form.Control.Feedback>
