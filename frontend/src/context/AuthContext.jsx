@@ -11,7 +11,11 @@ export function AuthProvider({ children }) {
     if (!hasToken()) return
     getMe()
       .then(setUser)
-      .catch(() => clearTokens())
+      .catch((err) => {
+        // Token kasujemy tylko wtedy, gdy serwer faktycznie go odrzucił (401).
+        // Chwilowa awaria sieci lub błąd 500 nie powinny wylogowywać użytkownika.
+        if (err.status === 401) clearTokens()
+      })
       .finally(() => setLoading(false))
   }, [])
 

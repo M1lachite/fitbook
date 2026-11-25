@@ -4,6 +4,16 @@ import { Link, useNavigate } from 'react-router-dom'
 import { register } from '../api/auth'
 import { useToast } from '../context/useToast'
 
+// Maksymalne długości pól (zgodne z limitami w bazie danych): chronią przed wklejeniem bardzo długich ciągów.
+const MAX_LENGTH = {
+  username: 150,
+  email: 254,
+  first_name: 150,
+  last_name: 150,
+  password: 128,
+  password2: 128,
+}
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function RegisterPage() {
@@ -67,6 +77,7 @@ function RegisterPage() {
         value={form[name]}
         onChange={change(name)}
         isInvalid={Boolean(errors[name])}
+        maxLength={MAX_LENGTH[name]}
         autoComplete={autoComplete}
       />
       <Form.Control.Feedback type="invalid">{errors[name]}</Form.Control.Feedback>
