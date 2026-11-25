@@ -336,7 +336,32 @@ Odpowiedź `201`:
 
 ## Wdrożenie
 
-_Do uzupełnienia._
+Infrastruktura jest opisana kodem w Terraformie (folder `infrastructure/`, stan trzymany zdalnie w S3). Szczegóły są w `infrastructure/README.md`. Postawienie i usunięcie środowiska:
+
+```
+cd infrastructure
+terraform init
+terraform apply
+terraform destroy
+```
+
+Adres wdrożonej aplikacji (CloudFront) wypisuje polecenie `terraform output cloudfront_domain`. Zmienia się po każdym ponownym postawieniu infrastruktury.
+
+### CI/CD (GitHub Actions)
+
+- **CI** (`.github/workflows/ci.yml`, workflow „CI & Security Scan”) uruchamia się po pushu na `main` oraz dla pull requestów do `main` i `release/**`. Wykonuje skan sekretów (Gitleaks), skan podatności zależności (Trivy) oraz build frontendu i backendu.
+- **CD** (`.github/workflows/deploy.yml`, workflow „Deploy to AWS”) uruchamia się automatycznie po udanym CI na gałęzi `main`. Logowanie do AWS odbywa się przez OIDC, bez przechowywania kluczy. Zadania:
+  1. „Build & push images (ECR)”: budowanie obrazów backendu i frontendu i wysłanie ich do ECR,
+  2. „Deploy app, web i healthcheck”: uruchomienie backendu na `ec2-app` i Nginx na `ec2-web` (polecenia przez AWS Systems Manager) oraz sprawdzenie publicznego adresu,
+  3. „Testy API i E2E (Playwright)”: testy na wdrożonej aplikacji (opis w sekcji „Testy integracyjne i E2E”).
+
+### Kolejność wdrożenia
+
+Najpierw trzeba postawić infrastrukturę (`terraform apply`) i poczekać, aż obie instancje EC2 będą widoczne w Systems Manager jako Online. Dopiero potem merge do `main` uruchamia wdrożenie. Bez działającej infrastruktury zadania wdrożeniowe kończą się błędem.
+
+### Wersje
+
+Wersja po zamknięciu kodu (Code Freeze) jest na gałęzi `release/v1.0.0` i oznaczona tagiem `v1.0.0-rc1`.
 
 ### Baza danych (Amazon RDS)
 
