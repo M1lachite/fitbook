@@ -1,5 +1,9 @@
 const API_URL = import.meta.env.VITE_API_URL
 
+// Po tylu milisekundach bez odpowiedzi serwera przerywamy zapytanie i pokazujemy komunikat,
+// zamiast kręcić spinnerem w nieskończoność (wolne łącze, serwer nie odpowiada).
+const REQUEST_TIMEOUT_MS = 15000
+
 export class ApiError extends Error {
   constructor(message, status, data) {
     super(message)
@@ -37,15 +41,29 @@ export async function request(path, { method = 'GET', body, auth = true } = {}) 
   const token = localStorage.getItem('access')
   if (auth && token) headers.Authorization = `Bearer ${token}`
 
+  // Brak sieci (np. tryb samolotowy): od razu czytelny komunikat, bez czekania na błąd przeglądarki.
+  if (!navigator.onLine) {
+    throw new ApiError('Brak połączenia z internetem. Sprawdź sieć i spróbuj ponownie.', 0, null)
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   let response
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     })
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new ApiError('Serwer nie odpowiada. Spróbuj ponownie za chwilę.', 0, null)
+    }
     throw new ApiError('Nie można połączyć się z serwerem.', 0, null)
+  } finally {
+    clearTimeout(timer)
   }
 
   if (response.status === 204) return null
@@ -56,6 +74,9 @@ export async function request(path, { method = 'GET', body, auth = true } = {}) 
     if (response.status === 401 && auth && token) {
       clearTokens()
       window.dispatchEvent(new Event('auth:expired'))
+    }
+    if (response.status >= 500) {
+      throw new ApiError('Wystąpił błąd serwera. Spróbuj ponownie za chwilę.', response.status, data)
     }
     throw new ApiError(extractMessage(data), response.status, data)
   }

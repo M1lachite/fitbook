@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Alert, Button, Spinner, Table } from 'react-bootstrap'
 import { deleteBooking, getMyBookings } from '../api/bookings'
 import ConfirmModal from '../components/ConfirmModal'
+import ErrorView from '../components/ErrorView'
 import { useToast } from '../context/useToast'
 
 function MyBookingsPage() {
@@ -11,13 +12,17 @@ function MyBookingsPage() {
   const [error, setError] = useState(null)
   const [target, setTarget] = useState(null)
   const [cancelling, setCancelling] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     getMyBookings()
-      .then(setBookings)
+      .then((data) => {
+        setBookings(data)
+        setError(null)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [reloadKey])
 
   const handleCancel = async () => {
     setCancelling(true)
@@ -34,7 +39,17 @@ function MyBookingsPage() {
   }
 
   if (loading) return <Spinner animation="border" />
-  if (error) return <Alert variant="danger">{error}</Alert>
+  if (error) {
+    return (
+      <ErrorView
+        message={error}
+        onRetry={() => {
+          setLoading(true)
+          setReloadKey((k) => k + 1)
+        }}
+      />
+    )
+  }
 
   return (
     <>

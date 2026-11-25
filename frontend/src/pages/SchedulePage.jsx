@@ -3,6 +3,7 @@ import { Alert, Form, Spinner } from 'react-bootstrap'
 import { createBooking, getMyBookings } from '../api/bookings'
 import { getClasses } from '../api/classes'
 import ClassRow from '../components/ClassRow'
+import ErrorView from '../components/ErrorView'
 import WeekStrip from '../components/WeekStrip'
 import { useAuth } from '../context/useAuth'
 import { useToast } from '../context/useToast'
@@ -65,7 +66,17 @@ function SchedulePage() {
   }
 
   if (loading) return <Spinner animation="border" />
-  if (error) return <Alert variant="danger">{error}</Alert>
+  if (error) {
+    return (
+      <ErrorView
+        message={error}
+        onRetry={() => {
+          setLoading(true)
+          setReloadKey((k) => k + 1)
+        }}
+      />
+    )
+  }
 
   const instructors = [...new Set(classes.map((c) => c.instructor))]
   const filtered = classes.filter((c) => instructor === 'all' || c.instructor === instructor)
